@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login — Online Library</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <div class="mark">OL</div>
+        <div>
+          <div style="font-weight:700">Online Library</div>
+          <div class="small muted">Sign in to continue</div>
+        </div>
+      </div>
+      <div class="row">
+        <button id="themeToggle" class="btn btn-theme">Theme</button>
+      </div>
+    </header>
+
+    <main class="card" style="max-width:420px;margin:0 auto;">
+      <h2 style="margin-top:0">Welcome back</h2>
+      <p class="muted">Use any email and password to log in (demo only, no real authentication).</p>
+
+      <div class="form-row">
+        <label class="small muted">Email</label>
+        <input id="email" type="email" placeholder="you@example.com" />
+      </div>
+      <div class="form-row">
+        <label class="small muted">Password</label>
+        <input id="password" type="password" placeholder="password (any value)" />
+      </div>
+
+      <div class="row wrap" style="margin-top:8px">
+        <button id="loginBtn" class="btn primary">Login</button>
+        <button id="seedBtn" class="btn">Reset & Seed Demo</button>
+        <span class="sp"></span>
+      </div>
+
+      <p class="small" style="margin-top:12px">
+        The app uses <code>sessionStorage</code> for user session and <code>localStorage</code> for books and rentals.
+      </p>
+    </main>
+
+    <footer class="footer">
+      Front-end mini project • Online Library Management System
+    </footer>
+  </div>
+
+  <script src="data.js"></script>
+  <script>
+    // Apply theme and init toggle
+    OL.applyTheme();
+    OL.initThemeToggle('themeToggle');
+
+    // Redirect if already logged in
+    if (OL.getUser()) {
+      window.location = 'profile.html';
+    }
+
+    document.getElementById('loginBtn').addEventListener('click', function () {
+      var email = (document.getElementById('email').value || '').trim();
+      var pass = (document.getElementById('password').value || '').trim();
+      if (!email) { alert('Please enter email'); return; }
+      if (!pass) { alert('Please enter password (any value for demo)'); return; }
+
+      var user = {
+        email: email,
+        name: email.split('@')[0] || 'User',
+        bio: '',
+        avatarColor: '#3b82f6'
+      };
+      OL.setUser(user);
+      OL.ensureSeed();
+      window.location = 'profile.html';
+    });
+
+    document.getElementById('seedBtn').addEventListener('click', function () {
+      localStorage.removeItem(OL.storageKey);
+      localStorage.removeItem(OL.rentalsKey);
+      localStorage.removeItem(OL.schemaKey);
+      OL.ensureSeed();
+      alert('Demo data has been reset and seeded.');
+    });
+  </script>
+</body>
+</html>
+

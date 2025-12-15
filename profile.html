@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Profile — Online Library</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <div class="mark">OL</div>
+        <div>
+          <div style="font-weight:700">Profile</div>
+          <div class="small muted">Manage your account details</div>
+        </div>
+      </div>
+      <div class="row wrap">
+        <div id="userSummary" class="small muted"></div>
+        <button id="themeToggle" class="btn btn-theme">Theme</button>
+        <button id="toLibrary" class="btn">Library</button>
+        <button id="toBorrowed" class="btn">Borrowed List</button>
+        <button id="logout" class="btn">Logout</button>
+      </div>
+    </header>
+
+    <main class="profile-layout card" style="display:grid;grid-template-columns:1.3fr 0.9fr;gap:14px;">
+      <div>
+        <h2 style="margin-top:0">Your Profile</h2>
+        <p class="muted">Update your basic information. These details are stored only in your browser session.</p>
+
+        <div class="form-row">
+          <label class="small muted">Name</label>
+          <input id="p_name" />
+        </div>
+        <div class="form-row">
+          <label class="small muted">Email (read-only)</label>
+          <input id="p_email" disabled />
+        </div>
+        <div class="form-row">
+          <label class="small muted">Bio</label>
+          <textarea id="p_bio" rows="4" placeholder="Tell something about yourself..."></textarea>
+        </div>
+
+        <div class="row" style="margin-top:4px">
+          <button id="save" class="btn primary">Save Profile</button>
+          <button id="deleteAcc" class="btn">Delete Account (local)</button>
+        </div>
+      </div>
+
+      <div class="card" style="display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;">
+        <div class="avatar" id="bigAvatar">U</div>
+        <div class="muted">Avatar preview</div>
+        <div style="width:100%;margin-top:4px">
+          <label class="small muted">Avatar color</label>
+          <input id="avatarColor" type="color" value="#3b82f6" style="width:100%;height:40px;border-radius:10px;border:none;padding:0;background:transparent" />
+        </div>
+        <div class="small muted" id="rentalCount"></div>
+      </div>
+    </main>
+
+    <section style="margin-top:12px" class="card">
+      <h3 style="margin:0">Your Rentals</h3>
+      <div id="rentalsArea" style="margin-top:8px"></div>
+    </section>
+
+    <footer class="footer">Local demo • sessionStorage used for user session</footer>
+  </div>
+
+  <script src="data.js"></script>
+  <script>
+    OL.applyTheme();
+    OL.initThemeToggle('themeToggle');
+
+    var user = OL.getUser();
+    if (!user) { window.location = 'login.html'; }
+
+    document.getElementById('p_name').value = user.name || '';
+    document.getElementById('p_email').value = user.email || '';
+    document.getElementById('p_bio').value = user.bio || '';
+    document.getElementById('avatarColor').value = user.avatarColor || '#3b82f6';
+
+    document.getElementById('userSummary').textContent = user.name + ' • ' + user.email;
+
+    function setAvatarPreview() {
+      var color = document.getElementById('avatarColor').value;
+      var name = document.getElementById('p_name').value || user.name || 'U';
+      var initials = name.split(' ').map(function (s) { return s[0]; }).slice(0, 2).join('').toUpperCase();
+      var el = document.getElementById('bigAvatar');
+      el.textContent = initials;
+      el.style.background = 'linear-gradient(135deg, ' + color + ', #06b6d4)';
+    }
+    setAvatarPreview();
+
+    document.getElementById('avatarColor').addEventListener('input', setAvatarPreview);
+    document.getElementById('p_name').addEventListener('input', setAvatarPreview);
+
+    document.getElementById('save').addEventListener('click', function () {
+      var u = OL.getUser();
+      u.name = document.getElementById('p_name').value || u.name;
+      u.bio = document.getElementById('p_bio').value || '';
+      u.avatarColor = document.getElementById('avatarColor').value;
+      OL.setUser(u);
+      user = u;
+      document.getElementById('userSummary').textContent = user.name + ' • ' + user.email;
+      alert('Profile saved (session only).');
+      setAvatarPreview();
+    });
+
+    document.getElementById('toLibrary').addEventListener('click', function () {
+      window.location = 'library.html';
+    });
+    document.getElementById('toBorrowed').addEventListener('click', function () {
+      window.location = 'borrowed.html';
+    });
+    document.getElementById('logout').addEventListener('click', function () {
+      if (confirm('Logout?')) OL.logout();
+    });
+
+    document.getElementById('deleteAcc').addEventListener('click', function () {
+      if (!confirm('Delete local demo account? This clears your rentals and session (local only).')) return;
+      var rentals = OL.getRentals();
+      var u = OL.getUser();
+      var books = OL.getBooks();
+      var kept = [];
+      rentals.forEach(function (r) {
+        if (r.userEmail === u.email) {
+          var b = books.find(function (x) { return x.id === r.bookId; });
+          if (b) b.available = true;
+        } else {
+          kept.push(r);
+        }
+      });
+      OL.saveRentals(kept);
+      OL.saveBooks(books);
+      sessionStorage.removeItem(OL.userKey);
+      alert('Account deleted (local demo).');
+      window.location = 'login.html';
+    });
+
+    function renderRentals() {
+      var area = document.getElementById('rentalsArea');
+      var all = OL.getRentals();
+      var u = OL.getUser();
+      if (!u) { area.innerHTML = '<div class="empty">Login to see rentals</div>'; return; }
+      var mine = all.filter(function (r) { return r.userEmail === u.email; });
+      document.getElementById('rentalCount').textContent = 'You currently have ' + mine.length + ' active rental(s).';
+      if (mine.length === 0) { area.innerHTML = '<div class="empty">You have no rentals.</div>'; return; }
+      var html = '<table class="table"><thead><tr><th>Book</th><th>Rented at</th><th></th></tr></thead><tbody>';
+      var books = OL.getBooks();
+      mine.forEach(function (r) {
+        var b = books.find(function (x) { return x.id === r.bookId; }) || {};
+        html += '<tr><td>' + OL.escape(b.title || 'Unknown') + '</td><td>' +
+          new Date(r.rentedAt).toLocaleString() +
+          '</td><td><button class="btn" onclick="returnRental(' + r.id + ')">Return</button></td></tr>';
+      });
+      html += '</tbody></table>';
+      area.innerHTML = html;
+    }
+
+    window.returnRental = function (rid) {
+      var rentals = OL.getRentals();
+      var idx = rentals.findIndex(function (x) { return x.id === rid; });
+      if (idx === -1) return alert('Rental not found');
+      var r = rentals.splice(idx, 1)[0];
+      var books = OL.getBooks();
+      var b = books.find(function (x) { return x.id === r.bookId; });
+      if (b) b.available = true;
+      OL.saveRentals(rentals);
+      OL.saveBooks(books);
+      alert('Returned.');
+      renderRentals();
+    };
+
+    renderRentals();
+  </script>
+</body>
+</html>
+

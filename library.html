@@ -1,0 +1,588 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Library — Online Library</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <div class="mark">OL</div>
+        <div>
+          <div style="font-weight:700">Library</div>
+          <div class="small muted">Browse, search and rent books</div>
+        </div>
+      </div>
+
+      <div class="row wrap">
+        <div id="userInfo" class="small muted"></div>
+        <button id="themeToggle" class="btn btn-theme">Theme</button>
+        <button id="toProfile" class="btn">Profile</button>
+        <button id="toBorrowed" class="btn" onclick="window.location='borrowed.html'">Borrowed List</button>
+        <button id="logout" class="btn">Logout</button>
+      </div>
+    </header>
+
+    <main>
+      <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div>
+          <h2 style="margin:0">Browse Books</h2>
+          <div class="muted">Use search, filters and details to explore books.</div>
+        </div>
+        <div class="row wrap">
+          <input id="search" placeholder="Search title or author" style="min-width:180px;" />
+          <select id="filterGenre" style="min-width:130px;">
+            <option value="">All genres</option>
+          </select>
+          <label class="small muted" style="display:flex;align-items:center;gap:4px;">
+            <input type="checkbox" id="onlyAvailable" style="width:auto;"> Only available
+          </label>
+        </div>
+      </div>
+
+      <section id="gridWrap" class="card" style="margin-top:12px">
+        <div id="booksGrid" class="grid"></div>
+      </section>
+
+      <section class="card" style="margin-top:12px">
+        <h3 style="margin:0">Active Rentals (All Users)</h3>
+        <div id="activeRentals" style="margin-top:8px"></div>
+      </section>
+
+      <section class="card" style="margin-top:12px">
+        <div class="row">
+          <h3 style="margin:0">Add New Book (Demo Admin)</h3>
+          <span class="sp"></span>
+        </div>
+        <p class="small muted">This section lets you add a custom book to the local catalogue for demo purposes.</p>
+        <div class="add-book">
+          <div class="row wrap">
+            <div style="flex:1;min-width:180px;">
+              <label class="small muted">Title</label>
+              <input id="nb_title" />
+            </div>
+            <div style="flex:1;min-width:180px;">
+              <label class="small muted">Author</label>
+              <input id="nb_author" />
+            </div>
+          </div>
+          <div class="row wrap" style="margin-top:8px;">
+            <div style="flex:1;min-width:150px;">
+              <label class="small muted">Genre</label>
+              <input id="nb_genre" placeholder="e.g. Fiction" />
+            </div>
+            <div style="flex:1;min-width:200px;">
+              <label class="small muted">Cover URL (optional)</label>
+              <input id="nb_cover" placeholder="https://..." />
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:8px;">
+            <label class="small muted">Synopsis (optional)</label>
+            <textarea id="nb_synopsis" rows="3" placeholder="Short description..."></textarea>
+          </div>
+          <button id="addBookBtn" class="btn primary">Add Book</button>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">All data stored locally using browser storage (localStorage).</footer>
+  </div>
+
+  <script src="data.js"></script>
+  <script>
+    OL.applyTheme();
+    OL.initThemeToggle('themeToggle');
+
+    var user = OL.getUser();
+    if (!user) { window.location = 'login.html'; }
+
+    document.getElementById('userInfo').textContent = user.name + ' • ' + user.email;
+
+    document.getElementById('toProfile').addEventListener('click', function () {
+      window.location = 'profile.html';
+    });
+    document.getElementById('toBorrowed').addEventListener('click', function () {
+      window.location = 'borrowed.html';
+    });
+    document.getElementById('logout').addEventListener('click', function () {
+      if (confirm('Logout?')) OL.logout();
+    });
+
+    function populateGenres() {
+      var genres = Array.from(new Set(OL.getBooks().map(function (b) { return b.genre; }))).filter(Boolean).sort();
+      var sel = document.getElementById('filterGenre');
+      sel.innerHTML = '<option value="">All genres</option>' +
+        genres.map(function (g) { return '<option value="' + OL.escape(g) + '">' + OL.escape(g) + '</option>'; }).join('');
+    }
+
+    function renderBooks() {
+      var grid = document.getElementById('booksGrid');
+      var q = (document.getElementById('search').value || '').toLowerCase();
+      var genre = document.getElementById('filterGenre').value || '';
+      var onlyAvail = document.getElementById('onlyAvailable').checked;
+
+      var list = OL.getBooks().filter(function (b) {
+        var matchesText = !q || b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q);
+        var matchesGenre = !genre || b.genre === genre;
+        var matchesAvail = !onlyAvail || b.available;
+        return matchesText && matchesGenre && matchesAvail;
+      });
+
+      if (list.length === 0) {
+        grid.innerHTML = '<div class="empty">No books match your search/filter.</div>';
+        return;
+      }
+
+      grid.innerHTML = list.map(function (b) {
+        var snippet = (b.synopsis || '').slice(0, 110);
+        if (b.synopsis && b.synopsis.length > 110) snippet += '...';
+        return (
+          '<div class="book">' +
+            '<div class="cover" style="background-image:url(\'' + (b.cover || '') + '\')"></div>' +
+            '<div class="book-title">' + OL.escape(b.title) + '</div>' +
+            '<div class="small muted">' + OL.escape(b.author) + ' • ' + OL.escape(b.genre) + '</div>' +
+            (snippet ? '<div class="small muted" style="margin-top:6px;min-height:30px;">' + OL.escape(snippet) + '</div>' : '') +
+            '<div class="actions" style="margin-top:10px;">' +
+              '<button class="btn" onclick="viewDetails(' + b.id + ')">Details</button>' +
+              '<button class="btn primary" ' + (b.available ? ('onclick="rentBook(' + b.id + ')"') : 'disabled') + '>' +
+                (b.available ? 'Rent' : 'Unavailable') +
+              '</button>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    function rentBook(id) {
+      if (!OL.getUser()) { alert('Login to rent'); window.location = 'login.html'; return; }
+      var books = OL.getBooks();
+      var book = books.find(function (b) { return b.id === id; });
+      if (!book) { alert('Book not found'); return; }
+      if (!book.available) { alert('Book is not available'); return; }
+
+      var rentals = OL.getRentals();
+      rentals.push({
+        id: Date.now(),
+        bookId: id,
+        userEmail: OL.getUser().email,
+        rentedAt: new Date().toISOString()
+      });
+      book.available = false;
+
+      OL.saveRentals(rentals);
+      OL.saveBooks(books);
+      renderBooks();
+      renderActiveRentals();
+      alert('Book rented — see Active Rentals below.');
+    }
+    window.rentBook = rentBook;
+
+    function returnBook(rid) {
+      var rentals = OL.getRentals();
+      var idx = rentals.findIndex(function (r) { return r.id === rid; });
+      if (idx === -1) { alert('Rental not found'); return; }
+      var r = rentals.splice(idx, 1)[0];
+      var books = OL.getBooks();
+      var book = books.find(function (b) { return b.id === r.bookId; });
+      if (book) book.available = true;
+      OL.saveRentals(rentals);
+      OL.saveBooks(books);
+      renderBooks();
+      renderActiveRentals();
+      alert('Book returned.');
+    }
+    window.returnBook = returnBook;
+
+    function renderActiveRentals() {
+      var area = document.getElementById('activeRentals');
+      var rentals = OL.getRentals();
+      var books = OL.getBooks();
+      if (!rentals || rentals.length === 0) {
+        area.innerHTML = '<div class="empty">No active rentals.</div>';
+        return;
+      }
+      var rows = rentals.map(function (r) {
+        var b = books.find(function (x) { return x.id === r.bookId; }) || {};
+        return (
+          '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px dashed rgba(255,255,255,0.05)">' +
+            '<div style="max-width:60%">' +
+              '<div style="font-weight:600">' + OL.escape(b.title || 'Unknown') + '</div>' +
+              '<div class="small muted">Borrower: ' + OL.escape(r.userEmail) + ' • ' + new Date(r.rentedAt).toLocaleString() + '</div>' +
+            '</div>' +
+            '<div><button class="btn" onclick="returnBook(' + r.id + ')">Return</button></div>' +
+          '</div>'
+        );
+      }).join('');
+      area.innerHTML = rows;
+    }
+
+    window.viewDetails = function (id) {
+      var b = OL.getBooks().find(function (x) { return x.id === id; });
+      if (!b) return alert('Book not found');
+
+      var backdrop = document.getElementById('detailsBackdrop');
+      var modal = document.getElementById('detailsModal');
+      if (!backdrop || !modal) {
+        alert('Details view is not available.');
+        return;
+      }
+
+      var synopsisHtml = b.synopsis
+        ? '<p class="small muted" style="margin-top:12px;line-height:1.4;">' + OL.escape(b.synopsis) + '</p>'
+        : '<p class="small muted" style="margin-top:12px;">No description available.</p>';
+
+      var moreLink = b.externalLink
+        ? '<a class="small" href="' + b.externalLink + '" target="_blank" rel="noopener">More info on OpenLibrary ›</a>'
+        : '';
+
+      modal.innerHTML =
+        '<h2 style="margin-top:0">' + OL.escape(b.title) + '</h2>' +
+        '<div class="small muted">' + OL.escape(b.author) + ' • ' + OL.escape(b.genre) + '</div>' +
+        '<div style="display:flex;gap:14px;margin-top:12px;flex-wrap:wrap;">' +
+          '<img src="' + (b.cover || '') + '" style="width:170px;height:250px;object-fit:cover;border-radius:10px"/>' +
+          '<div style="flex:1;min-width:200px;">' +
+            synopsisHtml +
+            '<div style="margin-top:12px">' + moreLink + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;">' +
+          '<button class="btn" id="detailsCloseBtn">Close</button>' +
+          (b.available
+            ? '<button class="btn primary" id="detailsRentBtn">Rent</button>'
+            : '<button class="btn" disabled>Unavailable</button>') +
+        '</div>';
+
+      backdrop.style.display = 'block';
+      modal.style.display = 'block';
+
+      function closeModal() {
+        backdrop.style.display = 'none';
+        modal.style.display = 'none';
+        backdrop.onclick = null;
+      }
+
+      backdrop.onclick = closeModal;
+      var closeBtn = document.getElementById('detailsCloseBtn');
+      if (closeBtn) closeBtn.onclick = closeModal;
+
+      var rentBtn = document.getElementById('detailsRentBtn');
+      if (rentBtn) {
+        rentBtn.onclick = function () {
+          rentBook(b.id);
+          closeModal();
+        };
+      }
+    };};
+
+    // Add new book
+    document.getElementById('addBookBtn').addEventListener('click', function () {
+      var title = (document.getElementById('nb_title').value || '').trim();
+      var author = (document.getElementById('nb_author').value || '').trim();
+      var genre = (document.getElementById('nb_genre').value || '').trim();
+      var cover = (document.getElementById('nb_cover').value || '').trim();
+      var synopsis = (document.getElementById('nb_synopsis').value || '').trim();
+
+      if (!title || !author) {
+        alert('Please enter at least title and author.');
+        return;
+      }
+
+      var books = OL.getBooks();
+      var maxId = books.reduce(function (m, b) { return b.id > m ? b.id : m; }, 0);
+      var nb = {
+        id: maxId + 1,
+        title: title,
+        author: author,
+        genre: genre || 'General',
+        cover: cover || '',
+        available: true,
+        synopsis: synopsis,
+        externalLink: ''
+      };
+      books.push(nb);
+      OL.saveBooks(books);
+
+      document.getElementById('nb_title').value = '';
+      document.getElementById('nb_author').value = '';
+      document.getElementById('nb_genre').value = '';
+      document.getElementById('nb_cover').value = '';
+      document.getElementById('nb_synopsis').value = '';
+
+      populateGenres();
+      renderBooks();
+      alert('New book added to catalogue.');
+    });
+
+    // Init
+    (function init() {
+      OL.ensureSeed();
+      populateGenres();
+      renderBooks();
+      renderActiveRentals();
+      document.getElementById('search').addEventListener('input', renderBooks);
+      document.getElementById('filterGenre').addEventListener('change', renderBooks);
+      document.getElementById('onlyAvailable').addEventListener('change', renderBooks);
+    })();
+// Auto-load more books on page load (default subject: programming, limit:120)
+(function autoLoadOL(){
+  // only auto-load when no transient fetched present
+  if (window._olFetched && window._olFetched.length) return;
+  // try to auto-load but delay slightly so UI ready
+  setTimeout(function(){
+    try {
+      loadBooksFromOpenLibrary({ subject: 'programming', q: '', limit: 120 });
+    } catch(e) {
+      console.warn('Auto-load failed:', e);
+    }
+  }, 600);
+})();
+
+  </script>
+  <!-- place after including data.js and before existing init() in library.html -->
+  <script>
+  // --- OpenLibrary integration: fetch many books live ---
+  // helper to build cover URL from OL keys
+  function olCover(cover_id, size) {
+    if (!cover_id) return '';
+    return 'https://covers.openlibrary.org/b/id/' + cover_id + '-' + (size || 'L') + '.jpg';
+  }
+
+  // Map OpenLibrary work/edition -> our book object
+  function mapOLToBook(item, preferIdBase) {
+    // item may be from /subjects or /search results; try multiple fields
+    var title = item.title || item.work_title || (item.title_suggest) || 'Unknown';
+    var author = (item.authors && item.authors[0] && item.authors[0].name) || (item.author_name && item.author_name[0]) || 'Unknown';
+    var cover = olCover(item.cover_id || (item.cover_i), 'L') || (item.cover_edition_key ? 'https://covers.openlibrary.org/b/olid/' + item.cover_edition_key + '-L.jpg' : '');
+    var idBase = preferIdBase || (item.key || item.cover_edition_key || item.edition_key && item.edition_key[0] || title).toString();
+    // create numeric-ish id (timestamp + hash) to avoid collisions with seeded ids
+    var id = Math.abs(hashString(idBase + (Math.random()*1000000))) % 10000000 + 10000;
+    var synopsis = (item.description && (typeof item.description === 'string' ? item.description : (item.description.value || ''))) || (item.first_sentence && (item.first_sentence.value || item.first_sentence)) || '';
+    var genre = (item.subject && item.subject[0]) || (item.subjects && item.subjects[0]) || item.genre || 'General';
+    return {
+      id: id,
+      title: title,
+      author: author,
+      genre: genre,
+      cover: cover,
+      available: true,
+      synopsis: synopsis,
+      externalLink: item.key ? ('https://openlibrary.org' + item.key) : (item.edition_key ? 'https://openlibrary.org/books/' + item.edition_key[0] : '')
+    };
+  }
+
+  // simple string hash for ids
+  function hashString(s) {
+    var h = 0|0;
+    for (var i=0;i<s.length;++i) h = ((h<<5)-h) + s.charCodeAt(i);
+    return h|0;
+  }
+
+  // DOM: insert load panel into header area (if not exists)
+  (function addOLPanel(){
+    var header = document.querySelector('.header');
+    if (!header) return;
+    if (document.getElementById('olPanel')) return;
+
+    var div = document.createElement('div');
+    div.id = 'olPanel';
+    div.style.marginTop = '8px';
+    div.innerHTML = ''
+      + '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;">'
+      + ' <select id="olSubject" class="btn" style="min-width:150px;">'
+      + '   <option value="">Popular Subjects</option>'
+      + '   <option value="fantasy">Fantasy</option>'
+      + '   <option value="science_fiction">Science Fiction</option>'
+      + '   <option value="history">History</option>'
+      + '   <option value="programming">Programming</option>'
+      + '   <option value="psychology">Psychology</option>'
+      + '   <option value="business">Business</option>'
+      + '   <option value="art">Art</option>'
+      + ' </select>'
+      + ' <input id="olQuery" placeholder="or type search query (e.g. ' + 'tolkien' + ')" style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);min-width:220px" />'
+      + ' <input id="olLimit" type="number" min="10" max="200" value="40" style="width:76px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04)" />'
+      + ' <button id="olLoad" class="btn">Load from OpenLibrary</button>'
+      + ' <button id="olSave" class="btn">Save to Catalog</button>'
+      + ' <div id="olStatus" class="small muted" style="margin-left:8px"></div>'
+      + '</div>';
+    header.appendChild(div);
+
+    // events
+    document.getElementById('olLoad').addEventListener('click', function(){
+      var subject = document.getElementById('olSubject').value;
+      var q = (document.getElementById('olQuery').value || '').trim();
+      var limit = parseInt(document.getElementById('olLimit').value,10) || 40;
+      loadBooksFromOpenLibrary({subject: subject, q: q, limit: limit});
+    });
+    document.getElementById('olSave').addEventListener('click', function(){
+      if (!window._olFetched || !window._olFetched.length) { alert('No fetched books to save. Click Load first.'); return; }
+      var existing = OL.getBooks();
+      var merged = existing.concat(window._olFetched);
+      OL.saveBooks(merged);
+      alert('Saved ' + window._olFetched.length + ' books to local catalog.');
+    });
+  })();
+
+  // Fetching function
+  var _loading = false;
+  window._olFetched = window._olFetched || [];
+
+  async function loadBooksFromOpenLibrary(opts) {
+    if (_loading) return;
+    opts = opts || {};
+    var subject = opts.subject || '';
+    var q = (opts.q || '').trim();
+    var limit = Math.min(200, Math.max(10, opts.limit || 40));
+    var statusEl = document.getElementById('olStatus');
+    statusEl.textContent = 'Loading...';
+    _loading = true;
+
+    try {
+      var items = [];
+
+      if (q) {
+        // Use the search API when custom query provided
+        // search.json?q=<q>&limit=<limit>
+        var page = 1;
+        var perPage = Math.min(100, limit);
+        var fetched = 0;
+        while (fetched < limit) {
+          var toFetch = Math.min(perPage, limit - fetched);
+          var url = 'https://openlibrary.org/search.json?q=' + encodeURIComponent(q) + '&limit=' + toFetch + '&page=' + page;
+          var res = await fetch(url);
+          if (!res.ok) throw new Error('OpenLibrary search failed: ' + res.status);
+          var json = await res.json();
+          if (!json.docs || json.docs.length === 0) break;
+          items = items.concat(json.docs);
+          fetched += json.docs.length;
+          if (!json.docs.length || fetched >= limit) break;
+          page++;
+        }
+      } else if (subject) {
+        // Use the subject endpoint (works well for categories)
+        // subjects/{subject}.json?limit=N&offset=0
+        var url = 'https://openlibrary.org/subjects/' + encodeURIComponent(subject) + '.json?limit=' + limit;
+        var res = await fetch(url);
+        if (!res.ok) throw new Error('OpenLibrary subject query failed: ' + res.status);
+        var json = await res.json();
+        // subject endpoint returns .works array
+        items = json.works || [];
+      } else {
+        // fallback: fetch recent or popular via search for "the"
+        var url = 'https://openlibrary.org/search.json?q=the&limit=' + limit;
+        var res = await fetch(url);
+        var json = await res.json();
+        items = json.docs || [];
+      }
+
+      // Map items and display
+      var mapped = items.map(function(it){ return mapOLToBook(it, it.key || it.cover_edition_key || it.title); });
+      // store in window for potential saving
+      window._olFetched = mapped;
+      // Merge into the displayed list (not saved to localStorage unless user clicks Save)
+      // We'll create a transient list used by renderBooksExternal()
+      window._transientBooks = mapped;
+      renderBooksWithTransient();
+      statusEl.textContent = 'Loaded ' + mapped.length + ' books (transient). Use "Save to Catalog" to persist.';
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = 'Error loading: ' + (err.message || err);
+      alert('Failed to load books from OpenLibrary. See console for details.');
+    } finally {
+      _loading = false;
+    }
+  }
+
+  // Render function that respects transient fetched books: we will display seeded local books + transient books
+  function renderBooksWithTransient() {
+    var grid = document.getElementById('booksGrid');
+    // reuse existing filtering logic: read search/genre/available filters
+    var q = (document.getElementById('search').value || '').toLowerCase();
+    var genre = document.getElementById('filterGenre').value || '';
+    var onlyAvail = document.getElementById('onlyAvailable').checked;
+
+    // combine local and transient (transient appended at end)
+    var local = OL.getBooks();
+    var transient = window._transientBooks || [];
+    var full = local.concat(transient);
+
+    var list = full.filter(function (b) {
+      var title = (b.title || '').toString().toLowerCase();
+      var author = (b.author || '').toString().toLowerCase();
+      var matchesText = !q || title.indexOf(q) !== -1 || author.indexOf(q) !== -1;
+      var matchesGenre = !genre || (b.genre || '').toString() === genre;
+      var matchesAvail = !onlyAvail || b.available;
+      return matchesText && matchesGenre && matchesAvail;
+    });
+
+    if (!list || list.length === 0) {
+      grid.innerHTML = '<div class="empty">No books match your search/filter.</div>';
+      return;
+    }
+
+    grid.innerHTML = list.map(function (b) {
+      var snippet = (b.synopsis || '').slice(0, 110);
+      if (b.synopsis && b.synopsis.length > 110) snippet += '...';
+      return (
+        '<div class="book">' +
+          '<div class="cover" style="background-image:url(\'' + (b.cover || '') + '\')"></div>' +
+          '<div class="book-title">' + OL.escape(b.title) + '</div>' +
+          '<div class="small muted">' + OL.escape(b.author) + ' • ' + OL.escape(b.genre) + '</div>' +
+          (snippet ? '<div class="small muted" style="margin-top:6px;min-height:30px;">' + OL.escape(snippet) + '</div>' : '') +
+          '<div class="actions" style="margin-top:10px;">' +
+            '<button class="btn" onclick="viewDetails(' + b.id + ')">Details</button>' +
+            '<button class="btn primary" ' + (b.available ? ('onclick="rentBook(' + b.id + ')"') : 'disabled') + '>' +
+              (b.available ? 'Rent' : 'Unavailable') +
+            '</button>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  // Replace existing renderBooks calls with this wrapper to include transient set
+  // If your code calls renderBooks(), let's alias it:
+  window.renderBooks = renderBooksWithTransient;
+
+  // Also make sure filters trigger updated rendering (if they already existed)
+  (function wireFilters() {
+    var s = document.getElementById('search');
+    var g = document.getElementById('filterGenre');
+    var oa = document.getElementById('onlyAvailable');
+    if (s) s.addEventListener('input', function(){ renderBooksWithTransient(); });
+    if (g) g.addEventListener('change', function(){ renderBooksWithTransient(); });
+    if (oa) oa.addEventListener('change', function(){ renderBooksWithTransient(); });
+  })();
+
+  // Notes / fallbacks: CORS & running from file://
+  // OpenLibrary supports CORS, but if you open library.html via file:// some browsers block fetch.
+  // If you see CORS errors, run a local HTTP server (e.g. `npx http-server` or `python -m http.server 8000`) and open http://localhost:8000
+  </script>
+
+
+  <div id="detailsBackdrop" style="
+    position:fixed;inset:0;
+    background:rgba(15,23,42,0.7);
+    backdrop-filter:blur(4px);
+    display:none;
+    z-index:40;
+  "></div>
+
+  <div id="detailsModal" class="card" style="
+    position:fixed;
+    inset:0;
+    max-width:680px;
+    max-height:90vh;
+    margin:auto;
+    overflow:auto;
+    z-index:50;
+    display:none;
+  ">
+  </div>
+
+</body>
+</html>
+

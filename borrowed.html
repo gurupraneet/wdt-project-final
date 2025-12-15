@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Borrowed Books — Online Library</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+  <div class="container">
+
+    <header class="header">
+      <div class="logo">
+        <div class="mark">OL</div>
+        <div>
+          <div style="font-weight:700">Borrowed Books</div>
+          <div class="small muted">All currently rented books and borrowers</div>
+        </div>
+      </div>
+
+      <div class="row wrap">
+        <button id="themeToggle" class="btn btn-theme">Theme</button>
+        <button class="btn" onclick="window.location='library.html'">Library</button>
+        <button class="btn" onclick="window.location='profile.html'">Profile</button>
+        <button class="btn" onclick="if(confirm('Logout?')) OL.logout()">Logout</button>
+      </div>
+    </header>
+
+    <main class="card">
+      <h2 style="margin-top:0;">List of Borrowed Books</h2>
+      <p class="muted">This page shows a consolidated view of all current rentals, including which user has borrowed which book.</p>
+
+      <div style="margin-top:12px" id="borrowedArea"></div>
+    </main>
+
+    <footer class="footer">Data displayed from localStorage (front-end demo)</footer>
+  </div>
+
+  <script src="data.js"></script>
+  <script>
+    OL.applyTheme();
+    OL.initThemeToggle('themeToggle');
+
+    if (!OL.getUser()) window.location = 'login.html';
+
+    function renderBorrowed() {
+      var rentals = OL.getRentals();
+      var books = OL.getBooks();
+      var area = document.getElementById('borrowedArea');
+
+      if (!rentals || rentals.length === 0) {
+        area.innerHTML = '<div class="empty">No books are currently borrowed.</div>';
+        return;
+      }
+
+      var html =
+        '<table class="table">' +
+          '<thead><tr>' +
+            '<th>Book Title</th>' +
+            '<th>Borrower</th>' +
+            '<th>Email</th>' +
+            '<th>Date & Time</th>' +
+          '</tr></thead><tbody>';
+
+      rentals.forEach(function (r) {
+        var b = books.find(function (x) { return x.id === r.bookId; }) || {};
+        var email = r.userEmail || '';
+        var name = email ? email.split('@')[0] : 'User';
+        html +=
+          '<tr>' +
+            '<td>' + OL.escape(b.title || 'Unknown') + '</td>' +
+            '<td>' + OL.escape(name) + '</td>' +
+            '<td>' + OL.escape(email) + '</td>' +
+            '<td>' + new Date(r.rentedAt).toLocaleString() + '</td>' +
+          '</tr>';
+      });
+
+      html += '</tbody></table>';
+      area.innerHTML = html;
+    }
+
+    renderBorrowed();
+  </script>
+</body>
+</html>
